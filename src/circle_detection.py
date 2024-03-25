@@ -11,32 +11,34 @@ def show_np_img(image):
     pil_image.show()
 
 
-def hough_circle_transform(edges, radius_range):
+def hough_circle_transform(edges, radius_range, angle_step=100, merge_distance=10):
     rows, cols = edges.shape
-    R_max = np.max(radius_range)
-    # 创建一个三维数组：两个维度对应图像空间，第三个维度对应半径的可能值
+    R_min, R_max = radius_range
     H = np.zeros((rows, cols, R_max))
-    
-    # 对每个边缘点进行处理
+
     edge_points = np.argwhere(edges > 0)
     for x, y in edge_points:
-        for r in range(radius_range[0], radius_range[1] + 1):
-            # 为每个可能的半径，在预期的圆心位置增加投票
-            for t in range(360):
+        for r in range(R_min, R_max + 1):
+            for t in range(0, 360, angle_step):
                 a = int(x - r * np.cos(t * np.pi / 180))
                 b = int(y - r * np.sin(t * np.pi / 180))
-                if a >= 0 and a < rows and b >= 0 and b < cols:
+                if 0 <= a < rows and 0 <= b < cols:
                     H[a, b, r-1] += 1
-    
-    # 寻找局部最大值作为圆心
-    threshold = np.max(H) * 0.5
+
+    # 使用动态阈值
+    mean_val = np.mean(H[H > 0])
+    std_val = np.std(H[H > 0])
+    threshold = mean_val + std_val
+
     circles = []
-    for r in range(radius_range[0], radius_range[1] + 1):
-        # 获取半径为r时的圆心位置
+    for r in range(R_min, R_max + 1):
         circle_candidates = np.argwhere(H[:, :, r-1] > threshold)
         for x, y in circle_candidates:
-            circles.append((y, x, r))
-    
+            # 合并接近的圆心
+            if not any(np.sqrt((x-x0)**2 + (y-y0)**2) < merge_distance for x0, y0, _ in circles):
+                circles.append((y, x, r))
+    print(circles)
+    show_np_img(circles)
     return circles
 
 def draw_detected_circles(image, circles, display_centers=True):

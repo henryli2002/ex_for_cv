@@ -1,6 +1,5 @@
 import numpy as np
-from PIL import Image, ImageDraw
-from scipy.ndimage.filters import convolve
+from PIL import Image
 from scipy.signal import convolve2d
 
 np.set_printoptions(threshold=np.inf)
@@ -30,6 +29,7 @@ def apply_gaussian_blur(image, kernel_size=9, sigma=2.0):
     image = convert_to_grayscale(image)  # 转换为灰度图
     image_np = np.array(image)
 
+
     # 进行卷积操作
     convolved_np = convolve2d(image_np, kernel, mode='same', boundary='wrap')
 
@@ -53,12 +53,12 @@ def compute_gradients(image):
     sobel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
     
     # 应用Sobel算子
-    gx = convolve(image, sobel_x)
-    gy = convolve(image, sobel_y)
+    gx = convolve2d(image, sobel_x)
+    gy = convolve2d(image, sobel_y)
 
     # 计算梯度幅值和方向
     gradient_magnitude = np.sqrt(gx**2 + gy**2)
-    gradient_direction = np.arctan2(gy, gx) * (180 / np.pi)  # 转换为角度
+    gradient_direction = np.arctan2(gy, gx) 
     return gradient_magnitude, gradient_direction
 
 def non_maximum_suppression(gradient_magnitude, gradient_direction):
@@ -74,11 +74,12 @@ def non_maximum_suppression(gradient_magnitude, gradient_direction):
     M, N = gradient_magnitude.shape
     Z = np.zeros((M,N), dtype=np.float32)
     angle = gradient_direction * 180. / np.pi
-    angle[angle < 0] += 180
-    q = 0
-    r = 0
+    angle[angle < 0] += 180.
+
     for i in range(1, M-1):
         for j in range(1, N-1):
+            q = 255
+            r = 255
             #angle 0
             if (0 <= angle[i,j] < 22.5) or (157.5 <= angle[i,j] <= 180):
                 q = gradient_magnitude[i, j+1]
@@ -100,7 +101,6 @@ def non_maximum_suppression(gradient_magnitude, gradient_direction):
                 Z[i,j] = gradient_magnitude[i,j]
             else:
                 Z[i,j] = 0
-    print(Z)
     return Z
 
 def double_threshold(nms_image, low_threshold, high_threshold):
@@ -123,7 +123,7 @@ def double_threshold(nms_image, low_threshold, high_threshold):
     result[weak_edge] = 75
     return result
 
-def edge_detection(image, low_threshold=5, high_threshold=15):
+def edge_detection(image, low_threshold=50, high_threshold=100):
     """
     边缘检测主函数。
     输入:
@@ -135,10 +135,10 @@ def edge_detection(image, low_threshold=5, high_threshold=15):
     - edges: 检测到的边缘的二值图像。
     """
     convolved_image = apply_gaussian_blur(image)
-    convolved_image = apply_gaussian_blur(convolved_image)
     gradient_magnitude, gradient_direction = compute_gradients(convolved_image)
-    nms_image = non_maximum_suppression(gradient_magnitude, gradient_direction)
-    edges = double_threshold(nms_image, low_threshold, high_threshold)
+    gradient_magnitude = double_threshold(gradient_magnitude, low_threshold, high_threshold)
+    edges = non_maximum_suppression(gradient_magnitude, gradient_direction)
+    
     show_np_img(edges)
     return edges
 
