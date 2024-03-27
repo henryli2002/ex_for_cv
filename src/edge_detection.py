@@ -4,6 +4,15 @@ from scipy.signal import convolve2d
 
 np.set_printoptions(threshold=np.inf)
 
+def compress_image(image, base_width=100):
+    # 计算等比缩放的高度
+    w_percent = (base_width / float(image.size[0]))
+    h_size = int((float(image.size[1]) * float(w_percent)))
+    
+    # 缩放图像
+    image = image.resize((base_width, h_size), Image.ANTIALIAS)
+    return image
+
 
 def show_np_img(image):
     pil_image = Image.fromarray(np.uint8(image))
@@ -14,7 +23,7 @@ def convert_to_grayscale(image):
     gray_image = image.convert('L')
     return gray_image
 
-def apply_gaussian_blur(image, kernel_size=9, sigma=2.0):
+def apply_gaussian_blur(image, kernel_size=9, sigma=3.0):
     kernel = np.zeros((kernel_size, kernel_size))
     center = kernel_size // 2
     # 填充卷积核
@@ -53,8 +62,8 @@ def compute_gradients(image):
     sobel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
     
     # 应用Sobel算子
-    gx = convolve2d(image, sobel_x)
-    gy = convolve2d(image, sobel_y)
+    gx = convolve2d(image, sobel_x, mode='same', boundary='wrap')
+    gy = convolve2d(image, sobel_y, mode='same', boundary='wrap')
 
     # 计算梯度幅值和方向
     gradient_magnitude = np.sqrt(gx**2 + gy**2)
@@ -78,8 +87,6 @@ def non_maximum_suppression(gradient_magnitude, gradient_direction):
 
     for i in range(1, M-1):
         for j in range(1, N-1):
-            q = 255
-            r = 255
             #angle 0
             if (0 <= angle[i,j] < 22.5) or (157.5 <= angle[i,j] <= 180):
                 q = gradient_magnitude[i, j+1]
@@ -96,6 +103,8 @@ def non_maximum_suppression(gradient_magnitude, gradient_direction):
             elif (112.5 <= angle[i,j] < 157.5):
                 q = gradient_magnitude[i-1, j-1]
                 r = gradient_magnitude[i+1, j+1]
+            else:
+                print("ERROR")
 
             if (gradient_magnitude[i,j] >= q) and (gradient_magnitude[i,j] >= r):
                 Z[i,j] = gradient_magnitude[i,j]
@@ -120,10 +129,10 @@ def double_threshold(nms_image, low_threshold, high_threshold):
     # 将结果标记为强边缘(255)，弱边缘(75)，非边缘(0)
     result = np.zeros_like(nms_image)
     result[strong_edge] = 255
-    result[weak_edge] = 75
+    result[weak_edge] = 0
     return result
 
-def edge_detection(image, low_threshold=50, high_threshold=100):
+def edge_detection(image, low_threshold=80, high_threshold=80):
     """
     边缘检测主函数。
     输入:
@@ -136,13 +145,13 @@ def edge_detection(image, low_threshold=50, high_threshold=100):
     """
     convolved_image = apply_gaussian_blur(image)
     gradient_magnitude, gradient_direction = compute_gradients(convolved_image)
-    gradient_magnitude = double_threshold(gradient_magnitude, low_threshold, high_threshold)
-    edges = non_maximum_suppression(gradient_magnitude, gradient_direction)
-    
+    nms_image = non_maximum_suppression(gradient_magnitude, gradient_direction)
+    edges = double_threshold(nms_image, low_threshold, high_threshold)
     show_np_img(edges)
     return edges
 
 
 if __name__ == '__main__':
     image = Image.open('./data/test_images/image.png')
+    image = compress_image(image)
     result = edge_detection(image)

@@ -1,44 +1,56 @@
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage.filters import convolve
-from scipy.signal import convolve2d
 
 np.set_printoptions(threshold=np.inf)
-
 
 def show_np_img(image):
     pil_image = Image.fromarray(np.uint8(image))
     pil_image.show()
 
 
-def hough_circle_transform(edges, radius_range, angle_step=100, merge_distance=10):
+def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, merge_distance=30):
     rows, cols = edges.shape
     R_min, R_max = radius_range
-    H = np.zeros((rows, cols, R_max))
+    H = np.zeros((rows, cols, R_max - R_min + 1))  # 注意调整数组大小以适应R_min到R_max的范围
 
+    # 计算Hough累积器
     edge_points = np.argwhere(edges > 0)
     for x, y in edge_points:
-        for r in range(R_min, R_max + 1):
+        for r in range(R_min, R_max + 1, radius_step):
             for t in range(0, 360, angle_step):
                 a = int(x - r * np.cos(t * np.pi / 180))
                 b = int(y - r * np.sin(t * np.pi / 180))
                 if 0 <= a < rows and 0 <= b < cols:
-                    H[a, b, r-1] += 1
+                    H[a, b, r - R_min] += 1  # 索引调整
 
-    # 使用动态阈值
-    mean_val = np.mean(H[H > 0])
-    std_val = np.std(H[H > 0])
-    threshold = mean_val + std_val
+    # 提取前10%的圆心
+    H_flattened = H.flatten()
+    indices_sorted = np.argsort(H_flattened)[::-1]
+    top_10_percent_indices = indices_sorted[:int(len(indices_sorted) * 0.05)]
+    circle_candidates = np.unravel_index(top_10_percent_indices, H.shape)
+    top_10_percent_votes = H_flattened[top_10_percent_indices]  # 提取对应的投票数
 
     circles = []
-    for r in range(R_min, R_max + 1):
-        circle_candidates = np.argwhere(H[:, :, r-1] > threshold)
-        for x, y in circle_candidates:
-            # 合并接近的圆心
-            if not any(np.sqrt((x-x0)**2 + (y-y0)**2) < merge_distance for x0, y0, _ in circles):
-                circles.append((y, x, r))
-    print(circles)
-    show_np_img(circles)
+    for i in range(len(circle_candidates[0])):
+        x, y, r_idx = circle_candidates
+        r = r_idx[i] + R_min  # 实际半径
+        votes = top_10_percent_votes[i]
+        # 检查是否与现有圆心接近
+        found = False
+        for j, (xc, yc, rc, vc) in enumerate(circles):
+            if np.sqrt((x[i]-xc)**2 + (y[i]-yc)**2) < merge_distance:
+                # 如果接近，保留投票数较多的圆心
+                if votes > vc:
+                    circles[j] = (x[i], y[i], r, votes)  # 用新圆心替换
+                found = True
+                break
+        if not found:
+            circles.append((x[i], y[i], r, votes))  # 添加新圆心及其投票数
+
+
+    circles = [(xc, yc, rc) for xc, yc, rc, vc in circles]
+
+    print("Detected circles:", circles)
     return circles
 
 def draw_detected_circles(image, circles, display_centers=True):
@@ -88,7 +100,9 @@ def detect_circles(edges, image, radius_range):
     return image_with_circles
 
 if __name__ == '__main__':
-    from edge_detection import edge_detection
+    from edge_detection import edge_detection, compress_image
     image = Image.open('./data/test_images/image.png')
+    # image = compress_image(image, 10)
     edges = edge_detection(image)
-    result = detect_circles(edges, image, (10,100))
+    result = detect_circles(edges, image, (10,50))
+    result.show()
