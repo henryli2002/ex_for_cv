@@ -23,7 +23,7 @@ def convert_to_grayscale(image):
     gray_image = image.convert('L')
     return gray_image
 
-def apply_gaussian_blur(image, kernel_size=9, sigma=3.0):
+def apply_gaussian_blur(image, kernel_size=9, sigma=2.0):
     kernel = np.zeros((kernel_size, kernel_size))
     center = kernel_size // 2
     # 填充卷积核
@@ -34,7 +34,7 @@ def apply_gaussian_blur(image, kernel_size=9, sigma=3.0):
     # 归一化卷积核
     kernel /= np.sum(kernel)
 
-    # 将Pillow Image转换为NumPy数组
+    # 将Image转换为NumPy数组
     image = convert_to_grayscale(image)  # 转换为灰度图
     image_np = np.array(image)
 
@@ -129,10 +129,10 @@ def double_threshold(nms_image, low_threshold, high_threshold):
     # 将结果标记为强边缘(255)，弱边缘(75)，非边缘(0)
     result = np.zeros_like(nms_image)
     result[strong_edge] = 255
-    result[weak_edge] = 0
+    result[weak_edge] = 75
     return result
 
-def edge_detection(image, low_threshold=80, high_threshold=80):
+def edge_detection(image, low_threshold=50, high_threshold=80):
     """
     边缘检测主函数。
     输入:
@@ -147,7 +147,6 @@ def edge_detection(image, low_threshold=80, high_threshold=80):
     gradient_magnitude, gradient_direction = compute_gradients(convolved_image)
     nms_image = non_maximum_suppression(gradient_magnitude, gradient_direction)
     edges = double_threshold(nms_image, low_threshold, high_threshold)
-    show_np_img(edges)
     return edges
 
 

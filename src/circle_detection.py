@@ -8,45 +8,63 @@ def show_np_img(image):
     pil_image.show()
 
 
-def hough_circle_transform(edges, radius_range, threshold=50, accumulator_threshold=30):
-    """
-    Performs the Hough Circle Transform on an image represented by its edges.
-    
-    :param edges: NumPy array of the image edges (binary image).
-    :param radius_range: Tuple (min_radius, max_radius) specifying the range of circle radii to detect.
-    :param threshold: The minimum number of votes needed to consider a location as a circle center.
-    :param accumulator_threshold: Threshold for the accumulator to consider a circle for drawing.
-    :return: Image with detected circles and their centers marked.
-    """
-    # Initialize the accumulator array.
-    height, width = edges.shape
-    accumulator = np.zeros((height, width, radius_range[1] - radius_range[0] + 1))
-    
-    # Iterate over the edge pixels.
-    edge_points = np.argwhere(edges)
-    for x, y in edge_points:
-        # Iterate over the specified range of radii.
-        for radius in range(radius_range[0], radius_range[1] + 1):
-            # Draw a circle in the accumulator for each edge point and possible radius.
-            for angle in np.arange(0, 360):
-                a = int(x - radius * np.cos(angle * np.pi / 180))
-                b = int(y - radius * np.sin(angle * np.pi / 180))
-                if a >= 0 and a < height and b >= 0 and b < width:
-                    accumulator[a, b, radius - radius_range[0]] += 1
-    
-    # Identifying circles from the accumulator.
-    circles = []
-    for radius, acc_slice in enumerate(accumulator[:, :, :], start=radius_range[0]):
-        # Find accumulator peaks above a threshold.
-        acc_peaks = np.where(acc_slice > accumulator_threshold)
-        for center_y, center_x in zip(*acc_peaks):
-            if acc_slice[center_y, center_x] >= threshold:
-                circles.append((center_x, center_y, radius))
-    
-    return circles
+def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, threshold=50, quantity=30, merge_distance=50):
+    rows, cols = edges.shape
+    R_min, R_max = radius_range
+    H = np.zeros((rows, cols, R_max - R_min + 1))  # 注意调整数组大小以适应R_min到R_max的范围
 
-# Note: Uncomment the following line and replace `edges` and `radius_range` with actual values to use the function.
-# hough_circle_transform(edges, (min_radius, max_radius))
+    # 计算Hough累积器
+    strong_edge = np.argwhere(edges == 255)
+    for x, y in strong_edge:
+        for r in range(R_min, R_max + 1, radius_step):
+            for t in range(0, 360, angle_step):
+                a = int(x - r * np.cos(t * np.pi / 180))
+                b = int(y - r * np.sin(t * np.pi / 180))
+                if 0 <= a < rows and 0 <= b < cols:
+                    H[a, b, r - R_min] += 1  # 索引调整
+
+    weak_edge = np.argwhere(edges == 75)
+    for x, y in weak_edge:
+        for r in range(R_min, R_max + 1, radius_step):
+            for t in range(0, 360, angle_step):
+                a = int(x - r * np.cos(t * np.pi / 180))
+                b = int(y - r * np.sin(t * np.pi / 180))
+                if 0 <= a < rows and 0 <= b < cols:
+                    H[a, b, r - R_min] += 0.5  # 索引调整
+    
+
+
+    # 提取前quantity的圆心
+    H_flattened = H.flatten()
+    indices_sorted = np.argsort(H_flattened)[::-1]
+    top_percent_indices = indices_sorted[:quantity]  # 提取前quantity个圆心
+    circle_candidates = np.unravel_index(top_percent_indices, H.shape)
+    top_percent_votes = H_flattened[top_percent_indices]  # 提取对应的投票数
+
+    circles = []
+    for i in range(len(circle_candidates[0])):
+        x, y, r_idx = circle_candidates
+        r = r_idx[i] + R_min  # 实际半径
+        votes = top_percent_votes[i]
+        if votes < threshold:
+            break
+        # 检查是否与现有圆心接近
+        found = False
+        for j, (yc, xc, rc, vc) in enumerate(circles):
+            if np.sqrt((x[i]-xc)**2 + (y[i]-yc)**2) < merge_distance:
+                # 如果接近，保留投票数较多的圆心
+                if votes > vc:
+                    circles[j] = (y[i], x[i], r, votes)  # 用新圆心替换
+                found = True
+                break
+        if not found:
+            circles.append((y[i], x[i], r, votes))  # 添加新圆心及其投票数
+
+
+    circles = [(yc, xc, rc) for yc, xc, rc, vc in circles]
+
+    print("Detected circles:", circles)
+    return circles
 
 
 def draw_detected_circles(image, circles, display_centers=True):
@@ -73,7 +91,6 @@ def draw_detected_circles(image, circles, display_centers=True):
         if display_centers:
             center = (circle[0], circle[1])
             draw.ellipse([center[0]-2, center[1]-2, center[0]+2, center[1]+2], fill="red")
-    
     return image
 
 def detect_circles(edges, image, radius_range):
@@ -97,8 +114,8 @@ def detect_circles(edges, image, radius_range):
 
 if __name__ == '__main__':
     from edge_detection import edge_detection, compress_image
-    image = Image.open('./data/test_images/image.png')
-    # image = compress_image(image, 10)
+    image = Image.open('./data/test_images/DetectCirclesExample_01.png').convert('RGB')
+    # image = compress_image(image, 150)
     edges = edge_detection(image)
     result = detect_circles(edges, image, (10,50))
     result.show()
