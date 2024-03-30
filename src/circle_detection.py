@@ -14,7 +14,7 @@ def np2img(image):
     return pil_image
 
 
-def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, threshold=50, quantity=100, merge_distance=50):
+def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, threshold=50, quantity=100, merge_distance=30):
     """
     使用霍夫圆变换在给定的边缘图像中检测圆形。
     
@@ -25,7 +25,7 @@ def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, thr
         angle_step: 在计算圆形时的角度步长（以度为单位）。默认为1度。
         threshold: 识别为圆的累加器阈值。仅当圆的累加器值大于或等于此值时，才考虑为有效圆。默认为50。
         quantity: 返回的最大圆形数量。默认为100。
-        merge_distance: 合并圆心很接近的圆。如果两个圆的中心距离小于此值，则仅保留累加器值较高的圆。默认为50。
+        merge_distance: 合并圆心很接近的圆。如果两个圆的中心距离小于此值，则仅保留累加器值较高的圆。默认为30。
 
     返回:
         circles: list of tuples
@@ -43,7 +43,7 @@ def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, thr
                 a = int(x - r * np.cos(t * np.pi / 180))
                 b = int(y - r * np.sin(t * np.pi / 180))
                 if 0 <= a < rows and 0 <= b < cols:
-                    H[a, b, r - R_min] += 1  # 索引调整
+                    H[a, b, r - R_min] += 0.5  # 索引调整
 
     weak_edge = np.argwhere(edges > 0)
     for x, y in weak_edge:
@@ -59,9 +59,9 @@ def hough_circle_transform(edges, radius_range, radius_step=1, angle_step=1, thr
     # 提取前quantity的圆心
     H_flattened = H.flatten()
     indices_sorted = np.argsort(H_flattened)[::-1]
-    top_percent_indices = indices_sorted[:min(quantity, indices_sorted.shape[1] - 1)]  # 提取前quantity个圆心(保证不会越界)
-    circle_candidates = np.unravel_index(top_percent_indices, H.shape)
-    top_percent_votes = H_flattened[top_percent_indices]  # 提取对应的投票数
+    top_indices = indices_sorted[:min(quantity, len(indices_sorted))]  # 提取前quantity个圆心(保证不会越界)
+    circle_candidates = np.unravel_index(top_indices, H.shape)
+    top_percent_votes = H_flattened[top_indices]  # 提取对应的投票数
 
     circles = []
     for i in range(len(circle_candidates[0])):
