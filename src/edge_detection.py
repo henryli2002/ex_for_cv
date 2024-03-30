@@ -149,8 +149,8 @@ def edge_detection(image, low_threshold=50, high_threshold=80):
     edges = double_threshold(nms_image, low_threshold, high_threshold)
     return edges
 
-
-if __name__ == '__main__':
-    image = Image.open('./data/test_images/image.png')
-    image = compress_image(image)
-    result = edge_detection(image)
+# for test
+# if __name__ == '__main__':
+#     image = Image.open('<path>')
+#     image = compress_image(image)
+#     result = edge_detection(image)
