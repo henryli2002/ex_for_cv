@@ -4,7 +4,7 @@ from scipy.signal import convolve2d
 
 np.set_printoptions(threshold=np.inf)
 
-def compress_image(image, base_width=100):
+def compress_image(image, base_width=400):
     # 计算等比缩放的高度
     w_percent = (base_width / float(image.size[0]))
     h_size = int((float(image.size[1]) * float(w_percent)))
@@ -24,6 +24,16 @@ def convert_to_grayscale(image):
     return gray_image
 
 def apply_gaussian_blur(image, kernel_size=9, sigma=2.0):
+    """
+    应用高斯模糊
+    输入:
+    - image: 原始图像
+    - kernel_size: 高斯核的大小
+    - sigma: 高斯函数的标准差
+
+    返回:
+    - convolved_image: 高斯模糊后的图像。
+    """
     kernel = np.zeros((kernel_size, kernel_size))
     center = kernel_size // 2
     # 填充卷积核
